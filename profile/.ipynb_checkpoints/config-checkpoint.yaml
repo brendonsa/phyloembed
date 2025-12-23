@@ -1,0 +1,11 @@
+cores: 60
+use-conda: true
+max-jobs-per-second: 1
+conda-prefix: ~/miniconda3/envs/
+max-status-checks-per-second: 1
+rerun-incomplete: true
+show-failed-logs: true
+printshellcmds: True
+conda-frontend: mamba
+resources:
+  gpu_slots: 4
