@@ -1,0 +1,69 @@
+env: phyloembed
+data_dir: data
+results_dir: results
+embeddings_dir: results/embeddings
+
+models:
+  - protbert
+  - prot5
+  - esmc
+  - esmc-cls
+  - e1
+
+
+models_concat:
+  - esmc
+  - msapairformer
+
+weights:
+  - unit
+  - unique
+  - shannon
+
+metrics:
+  - cosine
+  - euclidean
+
+
+include_zero:
+  - 0
+
+subsets:
+  coverage_percentages: [30, 50, 70, 90]
+  repetition_counts: [10, 30, 50, 70]
+  seed: 1337
+
+
+sorted_coverage:
+  coverage_percentages: [80,85,90,95]
+  directions: ["high", "low"]
+  normalize: ["weights", "count"]
+  include_zero: [0] 
+
+
+windows:
+  sizes: [10,15,20,25]
+  overlaps: [1, 2,3]
+
+windows_size1:
+  enabled: true
+  size: 1
+  overlap: 0
+
+windows_sizeALL:
+  enabled: true
+  size: 0
+  overlap: 0
+
+
+bootstrap_reps: 100
+num_gpus: 4
+jobs_per_gpu: 1
+
+
+sim_parse:
+  input_dir: "simulations/data"
+  output_dir: "simulations/results"
+
+sim_datasets: ['leaves10_dl2e-10_ps1e7','leaves10_dl1e-10_ps5e7','leaves10_dl2e-10_ps1e7','leaves10_dl2e-10_ps5e7','leaves10_dl5e-10_ps1e7','leaves10_dl5e-10_ps5e7']
+sim_replicates: 100

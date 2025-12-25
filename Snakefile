@@ -9,28 +9,12 @@ BOOTKINDS = [
 #    "pmsabootstrapw_frac50",
 #    "pmsabootstrapwithout_frac50"
 ]
-TIPS = [str(x) for x in config["species_tree_tips"]]
 POOLINGS = [""]  # Empty string = no suffix = mean pooling (default)
-trees_cfg = config["trees"]
-simphy_cfg = config["simphy"]
-
-trees_out = trees_cfg["out_dir"]
-sim_out = simphy_cfg["out_dir"]
-
-leaves = trees_cfg["leaves"]
-n_per_leaf = int(trees_cfg["n_per_leaf"])
-idxs = [f"{i:02d}" for i in range(1, n_per_leaf + 1)]
-
-ps_values = simphy_cfg["ps_values"]
-dl_values = simphy_cfg["dl_values"]
-
-
 
 include: "rules/sequence_analysis.smk"
 include: "rules/embeddings.smk"
 include: "rules/comparing.smk"
 include: "rules/phyloformer.smk"
-include: "rules/tree_sim2.smk"
 
 ruleorder: use_external_tree > infer_tree_raxml_aa
 ruleorder: use_external_alignments > align_proteins
@@ -46,12 +30,6 @@ def window_param_folder(model, metric, winsize, overlap):
     return f"model={model}__metric={metric}__w={winsize}__ov={overlap}"
 
 
-def species_tree_files(n_tips):
-    return expand(
-        "results/species_trees/{n}/species_{n}taxa_{i:03}.nwk",
-        n=str(n_tips),
-        i=range(1, REPS + 1),
-    )
 
 rule all:
     input:
@@ -120,6 +98,11 @@ rule tree_distances_vs_ref:
             f"results/{wc.dataset}/tree_nj_windows_{model}_{metric}_w1_ov0.nwk"
             for model in config["models_concat"]
             for metric in config["metrics"]
+        ] + [
+            # explicit include of size0/ov0 even if not in lists
+            f"results/{wc.dataset}/tree_nj_windows_{model}_{metric}_w0_ov0.nwk"
+            for model in config["models_concat"]
+            for metric in config["metrics"]
         ],
 
         sorted_cov_trees=lambda wc: [
@@ -135,12 +118,13 @@ rule tree_distances_vs_ref:
        
     conda:
         "phyloembed"
+    params:
+        dataset_dir = RESULTS_DIR + "/{dataset}"
     output:
-        "results/{dataset}/tree_distances_vs_ref.csv"
+        RESULTS_DIR + "/{dataset}/tree_distances_vs_ref.csv"
     shell:
         """
-        python scripts/tree_distances.py \
-            --dataset-dir results/{wildcards.dataset} \
-            --rscript scripts/compare_trees.R \
+        Rscript scripts/compare_all_trees.r \
+            --dataset-dir {params.dataset_dir} \
             --out {output}
         """

@@ -1,7 +1,8 @@
+RESULTS_DIR = globals().get("RESULTS_DIR", "results")
 MODELS_ALL = sorted(set(config["models"] + config.get("models_concat", [])))
 
 wildcard_constraints:
-    dataset = "[^/]+",
+    dataset = ".+",
     bootkind = "|".join(BOOTKINDS),
     mode = "|".join(MODES),
     model = "|".join(MODELS_ALL),
@@ -10,12 +11,12 @@ wildcard_constraints:
 rule extract_embeddings:
     input:
         fasta = lambda wc: (
-            f"results/{wc.dataset}/aligned.fasta"
+            f"{RESULTS_DIR}/{wc.dataset}/aligned.fasta"
             if wc.mode == "alignment"
-            else f"results/{wc.dataset}/translated.fasta"
+            else f"{RESULTS_DIR}/{wc.dataset}/translated.fasta"
         )
     output:
-        csv = "results/{dataset}/embeddings/{model}_{mode}.csv"
+        csv = RESULTS_DIR + "/{dataset}/embeddings/{model}_{mode}.csv"
     conda:
         "phyloembed"
     resources:
@@ -26,9 +27,9 @@ rule extract_embeddings:
 
 rule extract_embeddings_raw:
     input:
-        fasta = "results/{dataset}/aligned.fasta"
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
     output:
-        npz = "results/{dataset}/embeddings/{model}_raw.npz"
+        npz = RESULTS_DIR + "/{dataset}/embeddings/{model}_raw.npz"
     conda:
         "phyloembed"
     resources:
@@ -39,9 +40,9 @@ rule extract_embeddings_raw:
 
 rule site_weights:
     input:
-        msa="results/{dataset}/aligned.fasta"
+        msa=RESULTS_DIR + "/{dataset}/aligned.fasta"
     output:
-        weights="results/{dataset}/site_weights_{wkind}.npy"
+        weights=RESULTS_DIR + "/{dataset}/site_weights_{wkind}.npy"
     params:
         wkind=lambda wc: wc.wkind
     conda:
@@ -61,10 +62,12 @@ rule window_distances:
     input:
         emb = rules.extract_embeddings_raw.output.npz
     output:
-        joined="results/{dataset}/windows/model={model}__metric={metric}__w={winsize}__ov={overlap}/joined.phy",
-        meta="results/{dataset}/windows/model={model}__metric={metric}__w={winsize}__ov={overlap}/windows.json"
+        joined=RESULTS_DIR + "/{dataset}/windows/model={model}__metric={metric}__w={winsize}__ov={overlap}/joined.phy",
+        meta=RESULTS_DIR + "/{dataset}/windows/model={model}__metric={metric}__w={winsize}__ov={overlap}/windows.json"
     conda:
         "phyloembed"
+    params:
+        joined_only=int(config.get("windows", {}).get("joined_only", False))
     shell:
         r"""
         python scripts/build_window_distances.py \
@@ -73,7 +76,8 @@ rule window_distances:
             --window-size {wildcards.winsize} \
             --overlap {wildcards.overlap} \
             --metric {wildcards.metric} \
-            --reduce mean
+            --reduce mean \
+            $( [ "{params.joined_only}" = "1" ] && echo "--joined-only" || true )
         """
 
 rule sorted_coverage_distance:
@@ -81,8 +85,8 @@ rule sorted_coverage_distance:
         emb = rules.extract_embeddings_raw.output.npz,
         w = rules.site_weights.output.weights
     output:
-        phy="results/{dataset}/sorted_cov/model={model}__metric={metric}__wkind={wkind}__inc0={inc0}__cov={coverage}pct__dir={direction}__norm={norm}/joined.phy",
-        meta="results/{dataset}/sorted_cov/model={model}__metric={metric}__wkind={wkind}__inc0={inc0}__cov={coverage}pct__dir={direction}__norm={norm}/joined.json"
+        phy=RESULTS_DIR + "/{dataset}/sorted_cov/model={model}__metric={metric}__wkind={wkind}__inc0={inc0}__cov={coverage}pct__dir={direction}__norm={norm}/joined.phy",
+        meta=RESULTS_DIR + "/{dataset}/sorted_cov/model={model}__metric={metric}__wkind={wkind}__inc0={inc0}__cov={coverage}pct__dir={direction}__norm={norm}/joined.json"
     conda:
         "phyloembed"
     shell:
@@ -105,28 +109,28 @@ PY
 
 rule window_phy_to_tree:
     input:
-        dist="results/{dataset}/windows/model={model}__metric={metric}__w={winsize}__ov={overlap}/joined.phy"
+        dist=RESULTS_DIR + "/{dataset}/windows/model={model}__metric={metric}__w={winsize}__ov={overlap}/joined.phy"
     output:
-        tree="results/{dataset}/tree_nj_windows_{model}_{metric}_w{winsize}_ov{overlap}.nwk"
+        tree=RESULTS_DIR + "/{dataset}/tree_nj_windows_{model}_{metric}_w{winsize}_ov{overlap}.nwk"
     conda:
         "phyloembed"
     shell:
         r"""
         set -euo pipefail
-        fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 1 >/dev/null
+        fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null
         """
 
 rule sorted_cov_phy_to_tree:
     input:
-        dist="results/{dataset}/sorted_cov/model={model}__metric={metric}__wkind={wkind}__inc0={inc0}__cov={coverage}pct__dir={direction}__norm={norm}/joined.phy"
+        dist=RESULTS_DIR + "/{dataset}/sorted_cov/model={model}__metric={metric}__wkind={wkind}__inc0={inc0}__cov={coverage}pct__dir={direction}__norm={norm}/joined.phy"
     output:
-        tree="results/{dataset}/tree_nj_sortedcov_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{direction}_{norm}.nwk"
+        tree=RESULTS_DIR + "/{dataset}/tree_nj_sortedcov_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{direction}_{norm}.nwk"
     conda:
         "phyloembed"
     shell:
         r"""
         set -euo pipefail
-        fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 1 >/dev/null
+        fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null
         """
 
 def subset_param_folder(wc):
@@ -141,16 +145,16 @@ rule weighted_subset_consensus:
         emb = rules.extract_embeddings_raw.output.npz,
         w = rules.site_weights.output.weights
     output:
-        majority="results/{dataset}/consensus_weighted_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{nsubsets}_seed{seed}_majority.nwk",
-        greedy="results/{dataset}/consensus_weighted_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{nsubsets}_seed{seed}_greedy.nwk",
-        meta="results/{dataset}/subsets_consensus/meta_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{nsubsets}_seed{seed}.json"
+        majority=RESULTS_DIR + "/{dataset}/consensus_weighted_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{nsubsets}_seed{seed}_majority.nwk",
+        greedy=RESULTS_DIR + "/{dataset}/consensus_weighted_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{nsubsets}_seed{seed}_greedy.nwk",
+        meta=RESULTS_DIR + "/{dataset}/subsets_consensus/meta_{model}_{metric}_{wkind}_inc0{inc0}_{coverage}pct_{nsubsets}_seed{seed}.json"
     conda:
         "phyloembed"
     shell:
         r"""
         set -euo pipefail
 
-        WORKDIR="results/{wildcards.dataset}/subsets_consensus/work_model={wildcards.model}__metric={wildcards.metric}__wkind={wildcards.wkind}__inc0={wildcards.inc0}__cov={wildcards.coverage}pct__n={wildcards.nsubsets}__seed={wildcards.seed}"
+        WORKDIR="$(dirname {output.meta})/work_model={wildcards.model}__metric={wildcards.metric}__wkind={wildcards.wkind}__inc0={wildcards.inc0}__cov={wildcards.coverage}pct__n={wildcards.nsubsets}__seed={wildcards.seed}"
         mkdir -p "$WORKDIR"
 
         python scripts/build_weighted_subset_phylip.py \
@@ -173,15 +177,15 @@ PY
         for phy in "$WORKDIR"/distance_*.phy; do
             base="$(basename "$phy" .phy)"
             nwk="$WORKDIR/${{base}}.nwk"
-            fastme -i "$phy" -o "$nwk" --nni --spr   -T 1 >/dev/null
+            fastme -i "$phy" -o "$nwk" --nni --spr   -T 8 >/dev/null
             cat "$nwk" >> "$WORKDIR/subset_trees.nwk"
             echo >> "$WORKDIR/subset_trees.nwk"
         done
 
-        iqtree2 -con "$WORKDIR/subset_trees.nwk" -minsup 0.5 -pre "$WORKDIR/majority" -T 1 >/dev/null 2>&1
+        iqtree2 -con "$WORKDIR/subset_trees.nwk" -minsup 0.5 -pre "$WORKDIR/majority" -T 8 >/dev/null 2>&1
         cp "$WORKDIR/majority.contree" {output.majority}
 
-        iqtree2 -con "$WORKDIR/subset_trees.nwk" -minsup 0 -pre "$WORKDIR/greedy" -T 1 >/dev/null 2>&1
+        iqtree2 -con "$WORKDIR/subset_trees.nwk" -minsup 0 -pre "$WORKDIR/greedy" -T 8 >/dev/null 2>&1
         cp "$WORKDIR/greedy.contree" {output.greedy}
         """
 
@@ -189,7 +193,7 @@ rule compute_distance_matrix:
     input:
         csv = rules.extract_embeddings.output.csv
     output:
-        dist = "results/{dataset}/distances_{mode}_{model}_{metric}.csv"
+        dist = RESULTS_DIR + "/{dataset}/distances_{mode}_{model}_{metric}.csv"
     conda:
         "phyloembed"
     shell:
@@ -204,28 +208,29 @@ rule build_nj_tree:
     input:
         dist = rules.compute_distance_matrix.output.dist
     output:
-        tree = "results/{dataset}/tree_nj_{mode}_{model}_{metric}.nwk"
+        tree = RESULTS_DIR + "/{dataset}/tree_nj_{mode}_{model}_{metric}.nwk"
     conda:
         "phyloembed"
     shell:
-        "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 1 >/dev/null" 
+        "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null" 
 
 
 rule generate_bootstrap_inputs:
     input:
-        aligned   = "results/{dataset}/aligned.fasta",
-        unaligned = "results/{dataset}/translated.fasta"
+        aligned   = RESULTS_DIR + "/{dataset}/aligned.fasta",
+        unaligned = RESULTS_DIR + "/{dataset}/translated.fasta"
     output:
         expand(
-            "results/{{dataset}}/bootstrap/{rep}/boot.fasta",
+            RESULTS_DIR + "/{{dataset}}/bootstrap/{rep}/boot.fasta",
             rep=[str(i) for i in range(1, config["bootstrap_reps"] + 1)],
         ),
         expand(
-            "results/{{dataset}}/pseudo_bootstrap/{rep}/boot.fasta",
+            RESULTS_DIR + "/{{dataset}}/pseudo_bootstrap/{rep}/boot.fasta",
             rep=[str(i) for i in range(1, config["bootstrap_reps"] + 1)],
         )
     params:
-        n = config.get("bootstrap_reps", 100)
+        n = config.get("bootstrap_reps", 100),
+        output_base = RESULTS_DIR + "/{dataset}"
     conda:
         "phyloembed"
     shell:
@@ -233,59 +238,61 @@ rule generate_bootstrap_inputs:
         python scripts/generate_bootstrap_inputs.py \
             --aligned {input.aligned} \
             --unaligned {input.unaligned} \
-            --output-base results/{wildcards.dataset} \
+            --output-base {params.output_base} \
             --num {params.n}
         """
 
 rule generate_pmsa_bootstrap_inputs:
     input:
-        aligned = "results/{dataset}/aligned.fasta"
+        aligned = RESULTS_DIR + "/{dataset}/aligned.fasta"
     output:
         expand(
-            "results/{{dataset}}/pmsabootstrapw/{rep}/boot.fasta",
+            RESULTS_DIR + "/{{dataset}}/pmsabootstrapw/{rep}/boot.fasta",
             rep=[str(i) for i in range(1, config["bootstrap_reps"] + 1)],
         ),
         expand(
-            "results/{{dataset}}/pmsabootstrapwithout/{rep}/boot.fasta",
+            RESULTS_DIR + "/{{dataset}}/pmsabootstrapwithout/{rep}/boot.fasta",
             rep=[str(i) for i in range(1, config["bootstrap_reps"] + 1)],
         )
     params:
         n    = config.get("bootstrap_reps", 100),
-        frac = config.get("pmsa_scramble_frac", 0.05)
+        frac = config.get("pmsa_scramble_frac", 0.05),
+        output_base = RESULTS_DIR + "/{dataset}"
     conda:
         "phyloembed"
     shell:
         """
         python scripts/generate_pmsa_bootstrap_inputs.py \
           --aligned {input.aligned} \
-          --output-base results/{wildcards.dataset} \
+          --output-base {params.output_base} \
           --num {params.n} \
           --fraction {params.frac}
         """
 
 rule generate_pmsa_bootstrap_inputs_frac50:
     input:
-        aligned = "results/{dataset}/aligned.fasta"
+        aligned = RESULTS_DIR + "/{dataset}/aligned.fasta"
     output:
         expand(
-            "results/{{dataset}}/pmsabootstrapw_frac50/{rep}/boot.fasta",
+            RESULTS_DIR + "/{{dataset}}/pmsabootstrapw_frac50/{rep}/boot.fasta",
             rep=[str(i) for i in range(1, config["bootstrap_reps"] + 1)],
         ),
         expand(
-            "results/{{dataset}}/pmsabootstrapwithout_frac50/{rep}/boot.fasta",
+            RESULTS_DIR + "/{{dataset}}/pmsabootstrapwithout_frac50/{rep}/boot.fasta",
             rep=[str(i) for i in range(1, config["bootstrap_reps"] + 1)],
         )
     params:
         n      = config.get("bootstrap_reps", 100),
         frac   = 0.5,
-        suffix = "_frac50"
+        suffix = "_frac50",
+        output_base = RESULTS_DIR + "/{dataset}"
     conda:
         "phyloembed"
     shell:
         """
         python scripts/generate_pmsa_bootstrap_inputs.py \
           --aligned {input.aligned} \
-          --output-base results/{wildcards.dataset} \
+          --output-base {params.output_base} \
           --num {params.n} \
           --fraction {params.frac} \
           --suffix {params.suffix}
@@ -312,9 +319,9 @@ rule init_gpu_slots:
 
 rule embed_bootstrap_rep:
     input:
-        fasta = "results/{dataset}/{bootkind}/{rep}/boot.fasta",
+        fasta = RESULTS_DIR + "/{dataset}/{bootkind}/{rep}/boot.fasta",
     output:
-        csv = "results/{dataset}/{bootkind}/{rep}/embeddings/{model}.csv"
+        csv = RESULTS_DIR + "/{dataset}/{bootkind}/{rep}/embeddings/{model}.csv"
     conda:
         "phyloembed"
     resources:
@@ -327,7 +334,7 @@ rule compute_bootstrap_distance_matrix:
     input:
         csv = rules.embed_bootstrap_rep.output.csv
     output:
-        dist = "results/{dataset}/{bootkind}/{rep}/distances_{model}_{metric}.csv"
+        dist = RESULTS_DIR + "/{dataset}/{bootkind}/{rep}/distances_{model}_{metric}.csv"
     conda:
         "phyloembed"
     shell:
@@ -343,7 +350,7 @@ rule build_bootstrap_nj_embedding_tree:
     input:
         dist = rules.compute_bootstrap_distance_matrix.output.dist
     output:
-        tree = "results/{dataset}/{bootkind}/{rep}/tree_nj_embedding_{model}_{metric}.nwk"
+        tree = RESULTS_DIR + "/{dataset}/{bootkind}/{rep}/tree_nj_embedding_{model}_{metric}.nwk"
     conda:
         "phyloembed"
     shell:
@@ -352,9 +359,9 @@ rule build_bootstrap_nj_embedding_tree:
 
 rule build_bootstrap_nj_tree:
     input:
-        msa = "results/{dataset}/bootstrap/{rep}/boot.fasta"
+        msa = RESULTS_DIR + "/{dataset}/bootstrap/{rep}/boot.fasta"
     output:
-        tree = "results/{dataset}/bootstrap/{rep}/tree_nj_msa.nwk"
+        tree = RESULTS_DIR + "/{dataset}/bootstrap/{rep}/tree_nj_msa.nwk"
     conda:
         "phyloembed"
     shell:
@@ -363,9 +370,9 @@ rule build_bootstrap_nj_tree:
 
 rule build_base_bootstrap_tree:
     input:
-        msa = "results/{dataset}/aligned.fasta"
+        msa = RESULTS_DIR + "/{dataset}/aligned.fasta"
     output:
-        tree = "results/{dataset}/bootstrap/tree_nj.nwk"
+        tree = RESULTS_DIR + "/{dataset}/bootstrap/tree_nj.nwk"
     conda:
         "phyloembed"
     shell:
@@ -381,7 +388,7 @@ rule build_bootstrap_with_support_trees:
             rep=[str(i) for i in range(1, config['bootstrap_reps'] + 1)],
         )
     output:
-        supported = "results/{dataset}/tree_nj_msa_with_support.nwk",
+        supported = RESULTS_DIR + "/{dataset}/tree_nj_msa_with_support.nwk",
     conda:
         "phyloembed"
     shell:
@@ -410,7 +417,7 @@ rule build_bootstrap_embedding_with_support_trees:
             rep=[str(i) for i in range(1, config['bootstrap_reps'] + 1)],
         )
     output:
-        supported = "results/{dataset}/{bootkind}_tree_nj_embedding_{model}_{metric}_with_support.nwk",
+        supported = RESULTS_DIR + "/{dataset}/{bootkind}_tree_nj_embedding_{model}_{metric}_with_support.nwk",
     conda:
         "phyloembed"
     shell:

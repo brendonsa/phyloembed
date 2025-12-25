@@ -1,11 +1,16 @@
+RESULTS_DIR = globals().get("RESULTS_DIR", "results")
+
 rule phyloformer_prepare_aln:
     input:
-        msa = "results/{dataset}/aligned.fasta"
+        msa = RESULTS_DIR + "/{dataset}/aligned.fasta"
     output:
-        aln = "results/{dataset}/phyloformer/alns/{dataset}.fasta"
+        aln = RESULTS_DIR + "/{dataset}/phyloformer/alns/aln.fasta"
+    params:
+        aln_dir = RESULTS_DIR + "/{dataset}/phyloformer/alns"
     shell:
         """
-        mkdir -p results/{wildcards.dataset}/phyloformer/alns
+        rm -rf {params.aln_dir}
+        mkdir -p {params.aln_dir}
         cp {input.msa} {output.aln}
         """
 
@@ -13,23 +18,26 @@ rule phyloformer_infer_matrix:
     input:
         aln = rules.phyloformer_prepare_aln.output.aln
     output:
-        mat = "results/{dataset}/phyloformer/pf_matrices/{dataset}.phy"
+        mat = RESULTS_DIR + "/{dataset}/phyloformer/pf_matrices/aln.phy"
     params:
         model = config.get("phyloformer_model", "Phyloformer/models/pf.ckpt"),
-        mats_dir = "results/{dataset}/phyloformer/pf_matrices"
+        mats_dir = RESULTS_DIR + "/{dataset}/phyloformer/pf_matrices"
     conda:
         "phyloformer"
     shell:
         r"""
         mkdir -p {params.mats_dir}
-        python Phyloformer/infer_alns.py -o {params.mats_dir} {params.model} $(dirname {input.aln})
+        WORKDIR="$(mktemp -d)"
+        cp {input.aln} "$WORKDIR/aln.fasta"
+        python Phyloformer/infer_alns.py -o {params.mats_dir} {params.model} "$WORKDIR"
+        rm -rf "$WORKDIR"
         """
 
 rule phyloformer_fastme_tree:
     input:
         mat = rules.phyloformer_infer_matrix.output.mat
     output:
-        tree = "results/{dataset}/phyloformer.nwk"
+        tree = RESULTS_DIR + "/{dataset}/phyloformer.nwk"
     params:
     conda:
         "phyloformer" 

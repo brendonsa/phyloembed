@@ -44,6 +44,11 @@ def main():
     ap.add_argument("--digits", type=int, default=4, help="Zero pad for window index (default: 4)")
     ap.add_argument("--reduce", choices=["mean", "sum"], default="mean", help="Aggregate over windows (default: mean)")
     ap.add_argument("--prefix", default="distance_", help="Per-window filename prefix (default: distance_)")
+    ap.add_argument(
+        "--joined-only",
+        action="store_true",
+        help="Only write joined.phy (skip per-window .phy files)",
+    )
     args = ap.parse_args()
 
     data = np.load(args.embeddings, allow_pickle=True)
@@ -70,10 +75,11 @@ def main():
         W = emb[:, s:e, :].mean(axis=1)                  # (N, D)
         dist = squareform(pdist(W, metric=args.metric))  # (N, N)
 
-        fname = f"{args.prefix}{i:0{args.digits}d}.phy"
-        fpath = outdir / fname
-        write_phylip_relaxed(dist, labels, str(fpath))
-        files.append(fname)
+        if not args.joined_only:
+            fname = f"{args.prefix}{i:0{args.digits}d}.phy"
+            fpath = outdir / fname
+            write_phylip_relaxed(dist, labels, str(fpath))
+            files.append(fname)
 
         if acc is None:
             acc = dist
@@ -100,6 +106,7 @@ def main():
         "windows": [{"start": int(s), "end": int(e)} for (s, e) in windows],
         "per_window_files": files,
         "joined_file": "joined.phy",
+        "joined_only": bool(args.joined_only),
     }
     with open(outdir / "windows.json", "w") as f:
         json.dump(meta, f, indent=2)

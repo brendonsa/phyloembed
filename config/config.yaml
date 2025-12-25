@@ -512,6 +512,7 @@ models:
   - esmc-cls
   - e1
 
+
 models_concat:
   - esmc
   - msapairformer
@@ -544,12 +545,17 @@ sorted_coverage:
 
 
 windows:
-  sizes: [10,15, 20,25]
+  sizes: [10,15,20,25]
   overlaps: [1, 2,3]
 
 windows_size1:
   enabled: true
   size: 1
+  overlap: 0
+
+windows_sizeALL:
+  enabled: true
+  size: 0
   overlap: 0
 
 
@@ -558,30 +564,9 @@ num_gpus: 4
 jobs_per_gpu: 1
 
 
-# Tree Sim
-species_tree_reps: 100
-species_tree_tips: [12, 20]
-tree_height_years: 1800000337.5
-speciation_rate: 1.8e-9
-extinction_rate: 0
-dl_rates: [1e-10, 2e-10, 5e-10]
-pop_sizes: [1e7, 5e7]
-simphy_bin: tools/simphy/simphy_lnx64
+sim_parse:
+  input_dir: "simulations/data"
+  output_dir: "simulations/results"
 
-
-trees:
-  out_dir: "simulations/species_trees"
-  leaves: [12, 20]
-  n_per_leaf: 100
-  height: 1800000337.5
-  speciation_rate: 1.8e-9
-  extinction_rate: 0
-  seed: 42
-
-simphy:
-  out_dir: "simulations/simphy_out"
-  ps_values: [1e7, 5e7]
-  dl_values: [1e-10, 2e-10, 5e-10]
-  binary: "tools/simphy/simphy_lnx64"
-  parameters_file: "config/parameters.simphy"
-  rs: 100
+sim_datasets: ['leaves10_dl2e-10_ps1e7','leaves10_dl1e-10_ps5e7','leaves10_dl2e-10_ps1e7','leaves10_dl2e-10_ps5e7','leaves10_dl5e-10_ps1e7','leaves10_dl5e-10_ps5e7']
+sim_replicates: 100
