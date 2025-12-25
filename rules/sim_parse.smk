@@ -20,7 +20,10 @@ rule sim_parse_one:
         r"""
         mkdir -p $(dirname {output.tree})
         cp {input.tree} {output.tree}
+        tmp_fasta="$(mktemp)"
         python scripts/convert_phylip_to_fasta.py \
             --input {input.phy} \
-            --output {output.aligned}
+            --output "$tmp_fasta"
+        mafft --auto "$tmp_fasta" > {output.aligned}
+        rm -f "$tmp_fasta"
         """
