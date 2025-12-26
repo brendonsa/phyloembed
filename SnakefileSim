@@ -3,7 +3,7 @@ configfile: "config/configSim.yaml"
 import os
 from snakemake.io import glob_wildcards
 
-MODES = ["alignment"]
+MODES = ["alignment", "non_aligned"]
 BOOTKINDS = []
 POOLINGS = [""]  # Empty string = no suffix = mean pooling (default)
 
@@ -20,10 +20,12 @@ def existing_simulated_dataset_ids():
     pattern = os.path.join(sim_cfg.get("input_dir", "simulations/raw"), "{dataset}", "gene_tree.nwk")
     datasets = glob_wildcards(pattern).dataset
     base = sim_cfg.get("input_dir", "simulations/raw")
+    unaligned_name = "alignment.unaligned.fa"
     return [
         d
         for d in datasets
         if os.path.exists(os.path.join(base, d, "alignment_TRUE.phy"))
+        or os.path.exists(os.path.join(base, d, unaligned_name))
     ]
 
 if config.get("sim_filter_existing", True):
