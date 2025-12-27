@@ -21,11 +21,35 @@ def existing_simulated_dataset_ids():
     datasets = glob_wildcards(pattern).dataset
     base = sim_cfg.get("input_dir", "simulations/raw")
     unaligned_name = "alignment.unaligned.fa"
+    allowed_roots = set(sim_datasets) if sim_datasets else None
+
+    def within_sim_reps(dataset_id):
+        if sim_reps <= 0:
+            return True
+        rep_name = os.path.basename(dataset_id)
+        if not rep_name.startswith("replicate_"):
+            return False
+        try:
+            rep_idx = int(rep_name.split("_", 1)[1])
+        except ValueError:
+            return False
+        return rep_idx <= sim_reps
+
+    def within_sim_datasets(dataset_id):
+        if allowed_roots is None:
+            return True
+        root = dataset_id.split(os.sep, 1)[0]
+        return root in allowed_roots
+
     return [
         d
         for d in datasets
-        if os.path.exists(os.path.join(base, d, "alignment_TRUE.phy"))
-        or os.path.exists(os.path.join(base, d, unaligned_name))
+        if within_sim_datasets(d)
+        and within_sim_reps(d)
+        and (
+            os.path.exists(os.path.join(base, d, "alignment_TRUE.phy"))
+            or os.path.exists(os.path.join(base, d, unaligned_name))
+        )
     ]
 
 if config.get("sim_filter_existing", True):
