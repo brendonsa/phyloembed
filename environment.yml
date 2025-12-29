@@ -431,4 +431,3 @@ dependencies:
       - wadler-lindig==0.1.7
       - widgetsnbextension==4.0.15
       - zstd==1.5.7.2
-prefix: /home/compute2/miniconda3/envs/phyloembed
