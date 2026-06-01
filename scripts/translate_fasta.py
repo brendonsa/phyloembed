@@ -8,7 +8,6 @@ NUC_CHARS = set("ACGTUNacgtun")  # Typical nucleotide characters
 def is_nucleotide_sequence(seq: str) -> bool:
     """Return True if sequence looks like nucleotide (heuristic)."""
     seq_set = set(seq)
-    # If all characters are in nucleotide set → probably nucleotide
     return seq_set.issubset(NUC_CHARS)
 
 def translate_fasta(input_fasta: str, output_fasta: str):

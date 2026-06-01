@@ -24,19 +24,6 @@ rule simulate_tree:
             "--out_times {output.times}"
         )
 
-#rule wrap_nexus:
-#    input:
-#        nwk=f"{trees_out}/L{{leaf}}_{{idx}}.nwk"
-#    output:
-#        nexus=f"{trees_out}/L{{leaf}}_{{idx}}.trees"
-#    shell:
-#        (
-#            "nwk=$(tr -d '\\n' < {input.nwk}) && "
-#            "nwk=${{nwk%;}} && "
-#            "nwk=$(printf \"%s\" \"$nwk\" | tr -d ' \\t\\r') && "
-#            "nwk=$(printf \"%s\" \"$nwk\" | sed -E 's/:[0-9.eE+-]+$//') && "
-#            "printf \"#NEXUS\\nbegin trees;\\n  tree t1 = %s;\\nend;\\n\" \"$nwk\" > #{output.nexus}"
-#        )
 
 rule simphy_gene_trees:
     input:

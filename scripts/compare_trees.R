@@ -46,7 +46,6 @@ safe_metric <- function(expr_fun) {
   )
 }
 
-# preprocess trees; if this fails, we can't compute *any* metric → all penalized
 preprocess_trees <- function() {
   tryCatch(
     {
@@ -82,7 +81,6 @@ preprocess_trees <- function() {
 prep <- preprocess_trees()
 
 if (is.null(prep)) {
-  # preprocessing error → big value for all metrics
   metrics <- setNames(as.list(rep(BIG_PENALTY, length(metric_names))), metric_names)
 } else {
   tree1 <- prep$tree1
@@ -113,7 +111,6 @@ if (is.null(prep)) {
   )
 }
 
-# ---- output ----
 results <- tibble(
   metric = names(metrics),
   value  = unlist(metrics, use.names = FALSE)

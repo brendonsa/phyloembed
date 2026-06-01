@@ -103,25 +103,3 @@ rule use_external_tree:
         "phyloembed"
     shell:
         "python scripts/sanitize_tree_from_fasta.py --tree {input.ext} --map {input.map} -o {output.tree}"
-
-
-#rule infer_tree_raxmlng:
-#    input:
-#        aln = "results/alignment/{dataset}.aln.fasta"
-#    output:
-#        tree = "results/tree_raxml/{dataset}.nwk"
-#    conda:
-#        "phyloembed"
-#    threads: 8
-#    shell:
-#        """
-#        mkdir -p results/tree_raxml
-#        raxml-ng --all \
-#            --msa {input.aln} \
-#            --model LG+G \
-#            --threads {threads} \
-#            --seed 42 \
-#            --prefix results/tree_raxml/{wildcards.dataset}
-#
-#        cp results/tree_raxml/{wildcards.dataset}.raxml.bestTree {output.tree}
-#        """

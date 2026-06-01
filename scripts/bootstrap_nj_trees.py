@@ -27,15 +27,12 @@ def main(base_tree_path, tree_paths, out_supported, cutoff):
     supported = get_support(base, trees)
     Phylo.write(supported, out_supported, "newick")
 
-    # consensus = majority_consensus(trees, cutoff=cutoff)
-    # Phylo.write(consensus, out_consensus, "newick")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Annotate base tree with supports and write consensus (no globbing).")
     ap.add_argument("--base-tree", required=True, help="Path to base tree (.nwk)")
     ap.add_argument("--trees", nargs="+", required=True, help="List of bootstrap tree files (.nwk)")
     ap.add_argument("--out-supported", required=True, help="Output path for base-with-supports (.nwk)")
-    # ap.add_argument("--out-consensus", required=True, help="Output path for consensus (.nwk)")
     ap.add_argument("--cutoff", type=float, default=0.5, help="Majority-rule cutoff (default 0.5)")
     args = ap.parse_args()
     main(args.base_tree, args.trees, args.out_supported, args.cutoff)

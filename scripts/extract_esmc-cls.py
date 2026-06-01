@@ -61,7 +61,7 @@ def embed_sequence(
         elif pooling == "min":
             pooled, _ = emb.min(dim=0)        # (D,)
         elif pooling == "concat":
-            pooled = emb                      # (L, D)  <-- per-residue embeddings
+            pooled = emb                      # (L, D)
         else:
             raise ValueError(f"Unknown pooling mode: {pooling}")
 
@@ -75,7 +75,7 @@ def embed_sequence(
 
 
 def process(input_fasta: str, output_path: str, gpu_id: int):
-    """Process FASTA → mean embeddings → CSV (ESM-C backend, same I/O as original)."""
+    """Process FASTA → mean embeddings → CSV."""
     # device management
     if torch.cuda.is_available():
         device = torch.device(f"cuda:{gpu_id}")

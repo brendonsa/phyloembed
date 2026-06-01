@@ -1,15 +1,7 @@
 configfile: "config/config.yaml"
 
 MODES = ["alignment", "non_aligned"]
-BOOTKINDS = [
-#    "bootstrap",
-#    "pseudo_bootstrap",
-#    "pmsabootstrapw",
-#    "pmsabootstrapwithout",
-#    "pmsabootstrapw_frac50",
-#    "pmsabootstrapwithout_frac50"
-]
-POOLINGS = [""]  # Empty string = no suffix = mean pooling (default)
+
 
 include: "rules/sequence_analysis.smk"
 include: "rules/embeddings.smk"
@@ -56,12 +48,6 @@ rule tree_distances_vs_ref:
             for metric in config["metrics"]
         ]+ [
             f"results/{wc.dataset}/tree_nj_alignment_msapairformer_{metric}.nwk"
-            for metric in config["metrics"]
-        ],
-        emb=lambda wc: [
-            f"results/{wc.dataset}/{bootkind}_tree_nj_embedding_{model}_{metric}_with_support.nwk"
-            for bootkind in BOOTKINDS
-            for model in config["models"]
             for metric in config["metrics"]
         ],
         phyloformer="results/{dataset}/phyloformer.nwk",

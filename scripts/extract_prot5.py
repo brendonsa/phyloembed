@@ -17,7 +17,7 @@ def embed_sequence(
     # Clean sequence
     seq = seq.replace("*", "X")
     seq = re.sub(r"[UZOB]", "X", seq)
-    seq = seq.replace("-", "")  # gaps → X
+    seq = seq.replace("-", "") 
 
     if len(seq) == 0:
         raise ValueError("Sequence is empty after cleaning")
@@ -32,7 +32,6 @@ def embed_sequence(
 
     with torch.no_grad():
         outputs = model(**tokens)
-        # per-residue embeddings (exclude first special token)
         emb = outputs.last_hidden_state[0, 1:len(seq) + 1]  # (L, D)
         pooled = emb.mean(dim=0)  # (D,)
 

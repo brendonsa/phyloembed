@@ -123,7 +123,6 @@ def main():
     with open(outdir / "subsets.json", "w") as f:
         json.dump(meta, f, indent=2)
 
-    # convenience “done” marker
     (outdir / "DONE").write_text("ok\n")
 
 
