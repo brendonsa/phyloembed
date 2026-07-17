@@ -61,7 +61,7 @@ def embed_sequence(
         elif pooling == "min":
             pooled, _ = emb.min(dim=0)        # (D,)
         elif pooling == "concat":
-            pooled = emb                      # (L, D)  <-- per-residue embeddings
+            pooled = emb                      # (L, D)
         else:
             raise ValueError(f"Unknown pooling mode: {pooling}")
 

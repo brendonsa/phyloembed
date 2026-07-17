@@ -1,0 +1,19 @@
+# Extra config for the new experiments (Gaussian windows / Phyla / NeuralNJ).
+# Loaded on top of config/config.yaml by Snakefile_new; only the keys below are added
+# or overridden. Existing config.yaml is not modified.
+
+gwindows:
+  sizes: [10, 15, 20, 25]
+  overlaps: [1, 2, 3]
+  sigmas: [2, 3, 5]
+  include_win1: true      # also build the site-wise w1_ov0_s1 variant
+  joined_only: true
+
+run_phyla: true
+phyla_model: phyla-beta
+phyla_device: "cuda:0"
+
+run_neuralnj: true
+neuralnj_repo: NeuralNJ
+neuralnj_infer_opt: Argmax
+neuralnj_checkpoint: ""    # empty -> keep the checkpoint path from NeuralNJ's config template

@@ -1,0 +1,38 @@
+configfile: "config/config.yaml"
+configfile: "config/config_new.yaml"
+
+# New experiments Snakefile: Gaussian-window distances, Phyla, and NeuralNJ trees, all
+# scored against the reference tree into a separate results file. Reuses the existing
+# rule modules for upstream inputs (alignments, raw embeddings) which are assumed to be
+# present from prior runs, so only the new rules actually execute.
+
+RESULTS_DIR = "results"
+MODES = ["alignment", "non_aligned"]
+
+# embeddings.smk constrains the `bootkind` wildcard from BOOTKINDS at load time.
+BOOTKINDS = [
+    "bootstrap",
+    "pseudo_bootstrap",
+    "pmsabootstrapw",
+    "pmsabootstrapwithout",
+    "pmsabootstrapw_frac50",
+    "pmsabootstrapwithout_frac50",
+]
+
+include: "rules/sequence_analysis.smk"
+include: "rules/embeddings.smk"
+include: "rules/windows_gaussian.smk"
+include: "rules/phyla.smk"
+include: "rules/neuralnj.smk"
+include: "rules/compare_new.smk"
+
+ruleorder: use_external_tree > infer_tree_raxml_aa
+ruleorder: use_external_alignments > align_proteins
+
+
+rule all:
+    input:
+        new_distances = expand(
+            "results/{dataset}/tree_distances_vs_ref_new.csv",
+            dataset=config["datasets"],
+        )
