@@ -1,9 +1,5 @@
 RESULTS_DIR = globals().get("RESULTS_DIR", "results")
 
-# Score each new tree (Gaussian windows / Phyla / NeuralNJ) against the reference tree
-# by reusing the existing, unmodified scripts/compare_trees.R, then aggregate into a new
-# results file kept separate from the existing tree_distances_vs_ref.csv.
-
 rule compare_gwindows_tree:
     input:
         ref = RESULTS_DIR + "/{dataset}/tree.nwk",

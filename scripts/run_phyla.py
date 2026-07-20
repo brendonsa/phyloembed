@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""Run Phyla (https://github.com/mims-harvard/Phyla) on a protein FASTA and write a Newick tree.
-
-Assumes the Phyla repository is available on PYTHONPATH (installed via `pip install -e .`
-inside its own conda/mamba env) exactly like the sibling Phyloformer checkout.
-Phyla encodes protein sequences, predicts a pairwise distance matrix, and reconstructs
-an NJ tree (scikit-bio TreeNode).
-"""
 import argparse
 
 
@@ -27,7 +20,6 @@ def main():
     preds = model(encoded_aa, sequence_mask, cls_token_mask)
     tree = model.reconstruct_tree(preds, sequence_names)
 
-    # scikit-bio TreeNode -> Newick
     tree.write(args.output)
     print(f"[phyla] wrote tree -> {args.output}")
 

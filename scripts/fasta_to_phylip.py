@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Convert an aligned FASTA to sequential (single-row) relaxed PHYLIP.
-
-Matches the parser used by NeuralNJ (`load_phy_file`): a header line "N L" followed
-by one "<name> <sequence>" line per taxon, whitespace-separated, all rows equal length.
-"""
+"""Convert an aligned FASTA to sequential (single-row) relaxed PHYLIP."""
 import argparse
 from pathlib import Path
 

@@ -1,7 +1,6 @@
 RESULTS_DIR = globals().get("RESULTS_DIR", "results")
 
-# NeuralNJ only models nucleotides (DNA_WITH_GAP). Feed it the nucleotide alignment,
-# not the protein MSA. Repo assumed checked out as a sibling dir (config: neuralnj_repo).
+# NeuralNJ is nucleotide-only; feed the nucleotide alignment.
 
 rule neuralnj_prepare_phy:
     input:

@@ -1,11 +1,6 @@
 configfile: "config/config.yaml"
 configfile: "config/config_new.yaml"
 
-# New experiments Snakefile: Gaussian-window distances, Phyla, and NeuralNJ trees, all
-# scored against the reference tree into a separate results file. Reuses the existing
-# rule modules for upstream inputs (alignments, raw embeddings) which are assumed to be
-# present from prior runs, so only the new rules actually execute.
-
 RESULTS_DIR = "results"
 MODES = ["alignment", "non_aligned"]
 

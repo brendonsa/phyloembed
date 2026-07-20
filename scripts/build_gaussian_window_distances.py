@@ -33,11 +33,7 @@ def compute_windows(L: int, window_size: int, overlap: int):
 
 
 def gaussian_weights(width: int, sigma: float):
-    """Gaussian taper over `width` positions, centred on the middle position.
-
-    The central position of the window carries the most weight; positions
-    towards the edges are down-weighted. Weights are normalised to sum to 1.
-    """
+    # Gaussian taper centred on the middle position, normalised to sum to 1.
     if width <= 1:
         return np.ones(1, dtype=np.float64)
     k = np.arange(width, dtype=np.float64)

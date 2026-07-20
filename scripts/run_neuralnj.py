@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Run NeuralNJ (https://github.com/ZhangXinru99/NeuralNJ) on a PHYLIP alignment and
-write a Newick tree.
-
-NeuralNJ inference (`finetune_rl_search.py --infer_opt Argmax`) scans a directory of
-`.phy` files and writes one `<name>.tre` per input under
-`output/{opt}_dim{embed_dim}_patch{patch_size}/{instance_dirname}/`.
-
-NOTE: NeuralNJ only models nucleotides (`DNA_WITH_GAP`, vocab size 4). Feed it a
-nucleotide alignment (e.g. `aligned_nucleotides.fasta`), not a protein MSA.
-
-Assumes the NeuralNJ repo is checked out as a sibling directory (default: ./NeuralNJ),
-its conda env is active, and raxmlpy / IQTree / RAxML are installed per its README.
-"""
 import argparse
 import os
 import shutil
@@ -40,7 +27,7 @@ def main():
     template = Path(args.config_template) if args.config_template else repo / "config" / "finetune_reinforce_search_example.yaml"
     cfg = yaml.safe_load(Path(template).read_text())
 
-    # Isolated instance directory (relative to repo, since NeuralNJ prefixes with its own dir).
+    # instance path must be relative to the repo
     inst_name = f"_pe_instance_{uuid.uuid4().hex[:8]}"
     inst_dir = repo / inst_name
     inst_dir.mkdir(parents=True, exist_ok=True)

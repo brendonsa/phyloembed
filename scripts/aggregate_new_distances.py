@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Concatenate per-tree distance CSVs (as produced by scripts/compare_trees.R) into a
-single long table with a `tree` column, for the new (Gaussian-window / Phyla / NeuralNJ)
-methods. Kept separate from the existing aggregation on purpose.
-"""
+"""Concatenate per-tree distance CSVs into a single long table with a `tree` column."""
 import argparse
 from pathlib import Path
 
