@@ -1,9 +1,5 @@
-# Conda/mamba env for Phyla (https://github.com/mims-harvard/Phyla).
-# Referenced by rules/phyla.smk as the named env "phyla".
-# Create with:  mamba env create -n phyla -f envs/phyla.yaml
-# Then, inside the env, install causal-conv1d (see the Mamba repo) and Phyla itself:
-#   cd Phyla && pip install -e .
-# Phyla needs a GPU (tested on H100, works on 32GB V100); scikit-bio provides NJ.
+# named env "phyla", used by rules/phyla.smk
+# causal-conv1d/mamba-ssm/Phyla itself install afterward, not here: see windowed-experiments-handoff.md
 name: phyla
 channels:
   - pytorch
@@ -19,5 +15,3 @@ dependencies:
   - biopython
   - pip:
       - scikit-bio
-      - causal-conv1d
-      - mamba-ssm

@@ -1,0 +1,19 @@
+# Extra config for the new experiments on simulated datasets (Gaussian windows / Phyla).
+# Loaded on top of config/configSim.yaml by SnakefileSim_new; only the keys below are added
+# or overridden. Existing configSim.yaml is not modified.
+#
+# NeuralNJ is DNA-only and the simulations have no nucleotide alignment (protein-only
+# sim_parse.smk output), so it's left disabled here.
+
+gwindows:
+  sizes: [10, 15, 20, 25]
+  overlaps: [1, 2, 3]
+  sigmas: [2, 3, 5]
+  include_win1: true
+  joined_only: true
+
+run_phyla: true
+phyla_model: phyla-beta
+phyla_device: "cuda:0"
+
+run_neuralnj: false

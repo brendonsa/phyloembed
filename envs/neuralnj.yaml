@@ -1,9 +1,4 @@
-# Conda env for NeuralNJ (https://github.com/ZhangXinru99/NeuralNJ).
-# Referenced by rules/neuralnj.smk as the named env "neuralnj".
-# Preferred: create from the repo's own spec, which pins the exact deps:
-#   conda env create -n neuralnj -f NeuralNJ/environment.yaml
-# then install raxmlpy separately (see NeuralNJ/RAxMLpy) and ensure IQTree + RAxML are on PATH.
-# This file only guarantees the small extras our wrapper (scripts/run_neuralnj.py) needs.
+# named env "neuralnj", used by rules/neuralnj.smk; see windowed-experiments-handoff.md
 name: neuralnj
 channels:
   - bioconda

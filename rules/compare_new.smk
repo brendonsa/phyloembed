@@ -1,50 +1,8 @@
 RESULTS_DIR = globals().get("RESULTS_DIR", "results")
 
-rule compare_gwindows_tree:
-    input:
-        ref = RESULTS_DIR + "/{dataset}/tree.nwk",
-        t2  = RESULTS_DIR + "/{dataset}/tree_nj_gwindows_{model}_{metric}_w{winsize}_ov{overlap}_s{sigma}.nwk"
-    output:
-        csv = RESULTS_DIR + "/{dataset}/distances_new/gwindows_{model}_{metric}_w{winsize}_ov{overlap}_s{sigma}.csv"
-    conda:
-        "phyloembed"
-    shell:
-        """
-        mkdir -p $(dirname {output.csv})
-        Rscript scripts/compare_trees.R --t1 {input.ref} --t2 {input.t2} --out {output.csv}
-        """
-
-rule compare_phyla_tree:
-    input:
-        ref = RESULTS_DIR + "/{dataset}/tree.nwk",
-        t2  = RESULTS_DIR + "/{dataset}/phyla.nwk"
-    output:
-        csv = RESULTS_DIR + "/{dataset}/distances_new/phyla.csv"
-    conda:
-        "phyloembed"
-    shell:
-        """
-        mkdir -p $(dirname {output.csv})
-        Rscript scripts/compare_trees.R --t1 {input.ref} --t2 {input.t2} --out {output.csv}
-        """
-
-rule compare_neuralnj_tree:
-    input:
-        ref = RESULTS_DIR + "/{dataset}/tree.nwk",
-        t2  = RESULTS_DIR + "/{dataset}/neuralnj.nwk"
-    output:
-        csv = RESULTS_DIR + "/{dataset}/distances_new/neuralnj.csv"
-    conda:
-        "phyloembed"
-    shell:
-        """
-        mkdir -p $(dirname {output.csv})
-        Rscript scripts/compare_trees.R --t1 {input.ref} --t2 {input.t2} --out {output.csv}
-        """
-
-def new_distance_inputs(wc):
+def new_tree_paths(wc):
     files = [
-        f"{RESULTS_DIR}/{wc.dataset}/distances_new/gwindows_{model}_{metric}_w{winsize}_ov{overlap}_s{sigma}.csv"
+        f"{RESULTS_DIR}/{wc.dataset}/tree_nj_gwindows_{model}_{metric}_w{winsize}_ov{overlap}_s{sigma}.nwk"
         for model in config["models_concat"]
         for metric in config["metrics"]
         for winsize in config["gwindows"]["sizes"]
@@ -53,24 +11,29 @@ def new_distance_inputs(wc):
     ]
     if config.get("gwindows", {}).get("include_win1", True):
         files += [
-            f"{RESULTS_DIR}/{wc.dataset}/distances_new/gwindows_{model}_{metric}_w1_ov0_s1.csv"
+            f"{RESULTS_DIR}/{wc.dataset}/tree_nj_gwindows_{model}_{metric}_w1_ov0_s1.nwk"
             for model in config["models_concat"]
             for metric in config["metrics"]
         ]
     if config.get("run_phyla", True):
-        files.append(f"{RESULTS_DIR}/{wc.dataset}/distances_new/phyla.csv")
+        files.append(f"{RESULTS_DIR}/{wc.dataset}/phyla.nwk")
     if config.get("run_neuralnj", True):
-        files.append(f"{RESULTS_DIR}/{wc.dataset}/distances_new/neuralnj.csv")
+        files.append(f"{RESULTS_DIR}/{wc.dataset}/neuralnj.nwk")
     return files
 
-rule aggregate_new_distances:
+rule tree_distances_vs_ref_new:
     input:
-        new_distance_inputs
+        old_csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref.csv",
+        new_trees = new_tree_paths
     output:
         csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_new.csv"
     conda:
         "phyloembed"
+    params:
+        dataset_dir = RESULTS_DIR + "/{dataset}"
     shell:
         """
-        python scripts/aggregate_new_distances.py --inputs {input} --out {output.csv}
+        Rscript scripts/compare_all_trees.r \
+            --dataset-dir {params.dataset_dir} \
+            --out {output.csv}
         """

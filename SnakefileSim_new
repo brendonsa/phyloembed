@@ -1,0 +1,72 @@
+configfile: "config/configSim.yaml"
+configfile: "config/configSim_new.yaml"
+
+import os
+from snakemake.io import glob_wildcards
+
+MODES = ["alignment", "non_aligned"]
+BOOTKINDS = []
+POOLINGS = [""]
+
+sim_cfg = config.get("sim_parse", {})
+sim_datasets = config.get("sim_datasets", [])
+sim_reps = int(config.get("sim_replicates", 0))
+RESULTS_DIR = sim_cfg.get("output_dir", config.get("results_dir", "results"))
+
+def simulated_dataset_ids():
+    rep_ids = [f"replicate_{i:03d}" for i in range(1, sim_reps + 1)]
+    return [f"{d}/{r}" for d in sim_datasets for r in rep_ids]
+
+def existing_simulated_dataset_ids():
+    pattern = os.path.join(sim_cfg.get("input_dir", "simulations/raw"), "{dataset}", "gene_tree.nwk")
+    datasets = glob_wildcards(pattern).dataset
+    base = sim_cfg.get("input_dir", "simulations/raw")
+    unaligned_name = "alignment.unaligned.fa"
+    allowed_roots = set(sim_datasets) if sim_datasets else None
+
+    def within_sim_reps(dataset_id):
+        if sim_reps <= 0:
+            return True
+        rep_name = os.path.basename(dataset_id)
+        if not rep_name.startswith("replicate_"):
+            return False
+        try:
+            rep_idx = int(rep_name.split("_", 1)[1])
+        except ValueError:
+            return False
+        return rep_idx <= sim_reps
+
+    def within_sim_datasets(dataset_id):
+        if allowed_roots is None:
+            return True
+        root = dataset_id.split(os.sep, 1)[0]
+        return root in allowed_roots
+
+    return [
+        d
+        for d in datasets
+        if within_sim_datasets(d)
+        and within_sim_reps(d)
+        and (
+            os.path.exists(os.path.join(base, d, "alignment_TRUE.phy"))
+            or os.path.exists(os.path.join(base, d, unaligned_name))
+        )
+    ]
+
+if config.get("sim_filter_existing", True):
+    SIM_DATASETS = existing_simulated_dataset_ids()
+else:
+    SIM_DATASETS = simulated_dataset_ids()
+
+include: "rules/sim_parse.smk"
+include: "rules/embeddings.smk"
+include: "rules/windows_gaussian.smk"
+include: "rules/phyla.smk"
+include: "rules/compare_new.smk"
+
+rule all:
+    input:
+        expand(
+            RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_new.csv",
+            dataset=SIM_DATASETS,
+        )
