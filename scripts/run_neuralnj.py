@@ -44,13 +44,18 @@ def main():
         yaml.safe_dump(cfg, tf)
         cfg_path = tf.name
 
+    env = os.environ.copy()
+    lib_dirs = [str(repo / "RAxMLpy" / "build_plllib"), str(repo / "RAxMLpy" / "build_raxmllib")]
+    env["LD_LIBRARY_PATH"] = ":".join(lib_dirs + [env.get("LD_LIBRARY_PATH", "")])
+
     try:
         subprocess.run(
             ["python", "finetune_rl_search.py",
-             "--config", cfg_path,
+             "--config_path", cfg_path,
              "--infer_opt", args.infer_opt,
              "--evolution_model", args.evolution_model],
             cwd=str(repo),
+            env=env,
             check=True,
         )
 
