@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+import importlib.util
+import os
+import sys
 
 
 def main():
@@ -9,6 +12,13 @@ def main():
     ap.add_argument("--model", default="phyla-beta", help="Phyla model name (default: phyla-beta).")
     ap.add_argument("--device", default="cuda:0", help="Torch device (default: cuda:0).")
     args = ap.parse_args()
+
+    # phyla/model/model.py does `from utils.utils import load_config` (absolute, not
+    # `phyla.utils.utils`), which only resolves if the phyla/ package directory itself is
+    # on sys.path -- true for however the upstream authors ran it, not for us importing it
+    # as an installed package. Locate it (without importing, which is what fails) and add it.
+    phyla_pkg_dir = os.path.dirname(importlib.util.find_spec("phyla").origin)
+    sys.path.insert(0, phyla_pkg_dir)
 
     from phyla import phyla
 
