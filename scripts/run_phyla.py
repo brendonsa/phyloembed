@@ -22,6 +22,7 @@ def main():
 
     config = Config()
     config.model.model_name = args.model
+    config.model.n_layer = 16
 
     model = PhylaModel(config, device=args.device).load()
     if args.device.startswith("cuda"):
