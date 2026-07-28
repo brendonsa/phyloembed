@@ -17,9 +17,13 @@ def main():
     phyla_pkg_dir = os.path.dirname(importlib.util.find_spec("phyla").origin)
     sys.path.insert(0, phyla_pkg_dir)
 
-    from phyla import phyla
+    from phyla.utils.eval_configs import Config
+    from phyla import phyla as PhylaModel
 
-    model = phyla(name=args.model, device=args.device).load()
+    config = Config()
+    config.model.model_name = args.model
+
+    model = PhylaModel(config, device=args.device).load()
     if args.device.startswith("cuda"):
         model = model.cuda()
 
