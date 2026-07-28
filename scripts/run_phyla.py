@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+import torch
+
 
 def main():
     ap = argparse.ArgumentParser(description="Infer a phylogenetic tree with Phyla.")
@@ -35,6 +37,7 @@ def main():
         model.load()
     if args.device.startswith("cuda"):
         model = model.cuda()
+    model.eval()
 
     sequences = []
     sequence_names = []
@@ -53,8 +56,9 @@ def main():
     encoded_aa = encoded_aa.to(args.device)
     cls_token_mask = cls_token_mask.to(args.device)
     sequence_mask = sequence_mask.to(args.device)
-    preds = model(encoded_aa, sequence_mask, cls_token_mask)
-    tree = model.reconstruct_tree(preds, sequence_names)
+    with torch.no_grad():
+        preds = model(encoded_aa, sequence_mask, cls_token_mask)
+        tree = model.reconstruct_tree(preds, sequence_names)
 
     tree.write(args.output)
     print(f"[phyla] wrote tree -> {args.output}")
