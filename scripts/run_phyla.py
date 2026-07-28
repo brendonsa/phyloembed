@@ -36,7 +36,20 @@ def main():
     if args.device.startswith("cuda"):
         model = model.cuda()
 
-    encoded_aa, cls_token_mask, sequence_mask, sequence_names = model.encode_fasta(args.input)
+    sequences = []
+    sequence_names = []
+    with open(args.input) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                sequence_names.append(line[1:].strip())
+                sequences.append("")
+            else:
+                sequences[-1] += line
+
+    encoded_aa, cls_token_mask, sequence_mask, sequence_names = model.encode(sequences, sequence_names)
     encoded_aa = encoded_aa.to(args.device)
     cls_token_mask = cls_token_mask.to(args.device)
     sequence_mask = sequence_mask.to(args.device)
