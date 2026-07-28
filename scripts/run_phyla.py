@@ -37,6 +37,9 @@ def main():
         model = model.cuda()
 
     encoded_aa, cls_token_mask, sequence_mask, sequence_names = model.encode_fasta(args.input)
+    encoded_aa = encoded_aa.to(args.device)
+    cls_token_mask = cls_token_mask.to(args.device)
+    sequence_mask = sequence_mask.to(args.device)
     preds = model(encoded_aa, sequence_mask, cls_token_mask)
     tree = model.reconstruct_tree(preds, sequence_names)
 
