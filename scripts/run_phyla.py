@@ -3,6 +3,7 @@ import argparse
 import importlib.util
 import os
 import sys
+from pathlib import Path
 
 
 def main():
@@ -24,7 +25,14 @@ def main():
     config.model.model_name = args.model
     config.model.n_layer = 16
 
-    model = PhylaModel(config, device=args.device).load()
+    model = PhylaModel(config, device=args.device)
+    ckpt_paths = {"phyla-beta": Path("weights/11564369"),
+                  "phyla-alpha": Path("weights/phyla_alpha_291M_state_dict.pt")}
+    ckpt_path = ckpt_paths.get(model.version)
+    if ckpt_path is not None and ckpt_path.exists():
+        model.load(checkpoint_file=str(ckpt_path))
+    else:
+        model.load()
     if args.device.startswith("cuda"):
         model = model.cuda()
 
