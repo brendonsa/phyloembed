@@ -21,6 +21,7 @@ def main():
                     help="Override reload_checkpoint_path (relative to repo). Default: keep template value.")
     ap.add_argument("--infer-opt", default="Argmax", choices=["Argmax", "Search", "Finetune"])
     ap.add_argument("--evolution-model", default="GTR+I+G")
+    ap.add_argument("--no-branch-optimize", action="store_true")
     args = ap.parse_args()
 
     repo = Path(args.repo).resolve()
@@ -48,16 +49,15 @@ def main():
     lib_dirs = [str(repo / "RAxMLpy" / "build_plllib"), str(repo / "RAxMLpy" / "build_raxmllib")]
     env["LD_LIBRARY_PATH"] = ":".join(lib_dirs + [env.get("LD_LIBRARY_PATH", "")])
 
+    cmd = ["python", "finetune_rl_search.py",
+           "--config_path", cfg_path,
+           "--infer_opt", args.infer_opt,
+           "--evolution_model", args.evolution_model]
+    if not args.no_branch_optimize:
+        cmd.append("--branch_optimize")
+
     try:
-        subprocess.run(
-            ["python", "finetune_rl_search.py",
-             "--config_path", cfg_path,
-             "--infer_opt", args.infer_opt,
-             "--evolution_model", args.evolution_model],
-            cwd=str(repo),
-            env=env,
-            check=True,
-        )
+        subprocess.run(cmd, cwd=str(repo), env=env, check=True)
 
         tre = repo / "output" / f"{args.infer_opt}_dim{embed_dim}_patch{patch_size}" / inst_name / "aln.tre"
         if not tre.exists():
