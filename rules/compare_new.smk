@@ -19,7 +19,40 @@ def new_tree_paths(wc):
         files.append(f"{RESULTS_DIR}/{wc.dataset}/phyla.nwk")
     if config.get("run_neuralnj", True):
         files.append(f"{RESULTS_DIR}/{wc.dataset}/neuralnj.nwk")
+    if config.get("run_iqtree", True):
+        files.append(f"{RESULTS_DIR}/{wc.dataset}/tree_iqtree.nwk")
+    if config.get("run_fasttree", True):
+        files.append(f"{RESULTS_DIR}/{wc.dataset}/tree_fasttree.nwk")
     return files
+
+
+rule build_iqtree_tree:
+    input:
+        aln = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        tree = RESULTS_DIR + "/{dataset}/tree_iqtree.nwk"
+    conda:
+        "phyloembed"
+    threads: 4
+    shell:
+        r"""
+        set -euo pipefail
+        mkdir -p results/{wildcards.dataset}/iqtree
+        iqtree2 -s {input.aln} -m LG+G -T {threads} \
+            --prefix results/{wildcards.dataset}/iqtree/{wildcards.dataset} -redo >/dev/null
+        cp results/{wildcards.dataset}/iqtree/{wildcards.dataset}.treefile {output.tree}
+        """
+
+
+rule build_fasttree_tree:
+    input:
+        aln = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        tree = RESULTS_DIR + "/{dataset}/tree_fasttree.nwk"
+    conda:
+        "phyloembed"
+    shell:
+        "FastTree -lg -quiet {input.aln} > {output.tree}"
 
 rule tree_distances_vs_ref_new:
     input:

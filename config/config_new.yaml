@@ -17,3 +17,6 @@ run_neuralnj: true
 neuralnj_repo: NeuralNJ
 neuralnj_infer_opt: Argmax
 neuralnj_checkpoint: ""    # empty -> keep the checkpoint path from NeuralNJ's config template
+
+run_iqtree: true
+run_fasttree: true
