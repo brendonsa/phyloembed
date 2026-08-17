@@ -1,0 +1,45 @@
+configfile: "config/config.yaml"
+
+RESULTS_DIR = "results"
+MODES = ["alignment", "non_aligned"]
+BOOTKINDS = []
+
+config.setdefault("models_concat", [])
+if "msatransformer" not in config["models_concat"]:
+    config["models_concat"].append("msatransformer")
+
+include: "rules/embeddings.smk"
+
+METRICS = config["metrics"]
+
+rule all:
+    input:
+        expand(
+            "results/{dataset}/tree_distances_vs_ref_msatransformer.csv",
+            dataset=config["datasets"],
+        )
+
+
+rule tree_distances_vs_ref_msatransformer:
+    input:
+        old_csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref.csv",
+        pooled_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_alignment_msatransformer_{metric}.nwk",
+            metric=METRICS,
+        ),
+        window1_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_windows_msatransformer_{metric}_w1_ov0.nwk",
+            metric=METRICS,
+        )
+    output:
+        csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_msatransformer.csv"
+    conda:
+        "phyloembed"
+    params:
+        dataset_dir = RESULTS_DIR + "/{dataset}"
+    shell:
+        """
+        Rscript scripts/compare_all_trees.r \
+            --dataset-dir {params.dataset_dir} \
+            --out {output.csv}
+        """
