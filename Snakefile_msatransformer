@@ -10,6 +10,47 @@ if "msatransformer" not in config["models_concat"]:
 
 include: "rules/embeddings.smk"
 
+ruleorder: extract_msatransformer_pooled > extract_embeddings
+ruleorder: extract_msatransformer_raw > extract_embeddings_raw
+
+rule extract_msatransformer_pooled:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        csv = RESULTS_DIR + "/{dataset}/embeddings/msatransformer_alignment.csv"
+    conda:
+        "msatransformer"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_msatransformer.py \
+            --input {input.fasta} \
+            --output {output.csv} \
+            --gpu-id 0 \
+            --pooling mean
+        """
+
+
+rule extract_msatransformer_raw:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        npz = RESULTS_DIR + "/{dataset}/embeddings/msatransformer_raw.npz"
+    conda:
+        "msatransformer"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_msatransformer.py \
+            --input {input.fasta} \
+            --output {output.npz} \
+            --gpu-id 0 \
+            --pooling concat
+        """
+
+
 METRICS = config["metrics"]
 
 rule all:
