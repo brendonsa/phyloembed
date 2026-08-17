@@ -9,11 +9,17 @@ from Bio import SeqIO
 import esm
 
 
+MAX_LEN = 1024
+
+
 def load_msa(input_fasta):
     labels, seqs = [], []
     for record in SeqIO.parse(input_fasta, "fasta"):
         labels.append(record.id)
         seqs.append(str(record.seq))
+    if seqs and len(seqs[0]) > MAX_LEN:
+        print(f"[extract_msatransformer] truncating alignment {len(seqs[0])} -> {MAX_LEN} columns")
+        seqs = [s[:MAX_LEN] for s in seqs]
     return labels, seqs
 
 
