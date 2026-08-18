@@ -74,8 +74,9 @@ def process(input_fasta, output_path, gpu_id, pooling="mean", max_batch_tokens=4
         emb = embed_e1_retrieval(seq, context, predictor, seq_id, pooling=pooling)
 
         if pooling == "concat":
-            # re-expand to full alignment length, gaps get a zero vector, so all strains stack
-            full = np.zeros((len(raw_seqs[i]), emb.shape[1]), dtype=np.float32)
+            # re-expand to full alignment length; gaps get a tiny non-zero filler
+            # (a true zero vector makes cosine distance divide by zero -> nan)
+            full = np.full((len(raw_seqs[i]), emb.shape[1]), 1e-8, dtype=np.float32)
             pos = 0
             for k, ch in enumerate(raw_seqs[i]):
                 if ch != "-":
