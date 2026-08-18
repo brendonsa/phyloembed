@@ -1,0 +1,139 @@
+configfile: "config/config.yaml"
+
+RESULTS_DIR = "results"
+METRICS = config["metrics"]
+
+
+rule all:
+    input:
+        expand(
+            "results/{dataset}/tree_distances_vs_ref_e1retrieval.csv",
+            dataset=config["datasets"],
+        )
+
+
+# --- experiment 1: no alignment, pooled retrieval-augmented embedding ---
+
+rule extract_e1_retrieval:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/translated.fasta"
+    output:
+        csv = RESULTS_DIR + "/{dataset}/embeddings/e1retrieval_alignment.csv"
+    conda:
+        "phyloembed"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_e1_retrieval.py \
+            --input {input.fasta} \
+            --output {output.csv} \
+            --gpu-id 0 \
+            --pooling mean
+        """
+
+
+rule compute_distance_matrix_e1retrieval:
+    input:
+        csv = rules.extract_e1_retrieval.output.csv
+    output:
+        dist = RESULTS_DIR + "/{dataset}/distances_e1retrieval_{metric}.csv"
+    conda:
+        "phyloembed"
+    shell:
+        """
+        python scripts/compute_distance_matrix_phylip.py \
+            --input {input.csv} \
+            --output {output.dist} \
+            --metric {wildcards.metric}
+        """
+
+
+rule build_nj_tree_e1retrieval:
+    input:
+        dist = rules.compute_distance_matrix_e1retrieval.output.dist
+    output:
+        tree = RESULTS_DIR + "/{dataset}/tree_nj_e1retrieval_{metric}.nwk"
+    conda:
+        "phyloembed"
+    shell:
+        "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null"
+
+
+# --- experiment 2: alignment, per-residue retrieval-augmented embedding, window size 1 ---
+
+rule extract_e1_retrieval_pertok:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        npz = RESULTS_DIR + "/{dataset}/embeddings/e1retrieval_raw.npz"
+    conda:
+        "phyloembed"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_e1_retrieval.py \
+            --input {input.fasta} \
+            --output {output.npz} \
+            --gpu-id 0 \
+            --pooling concat
+        """
+
+
+rule window_distances_e1retrieval:
+    input:
+        emb = rules.extract_e1_retrieval_pertok.output.npz
+    output:
+        joined = RESULTS_DIR + "/{dataset}/windows_e1retrieval/model=e1retrieval__metric={metric}__w=1__ov=0/joined.phy",
+        meta = RESULTS_DIR + "/{dataset}/windows_e1retrieval/model=e1retrieval__metric={metric}__w=1__ov=0/windows.json"
+    conda:
+        "phyloembed"
+    shell:
+        """
+        python scripts/build_window_distances.py \
+            --embeddings {input.emb} \
+            --outdir $(dirname {output.joined}) \
+            --window-size 1 \
+            --overlap 0 \
+            --metric {wildcards.metric} \
+            --reduce mean
+        """
+
+
+rule window_phy_to_tree_e1retrieval:
+    input:
+        dist = rules.window_distances_e1retrieval.output.joined
+    output:
+        tree = RESULTS_DIR + "/{dataset}/tree_nj_windows_e1retrieval_{metric}_w1_ov0.nwk"
+    conda:
+        "phyloembed"
+    shell:
+        "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null"
+
+
+# --- scoring: both experiments together in one pass ---
+
+rule tree_distances_vs_ref_e1retrieval:
+    input:
+        old_csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref.csv",
+        pooled_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_e1retrieval_{metric}.nwk",
+            metric=METRICS,
+        ),
+        windowed_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_windows_e1retrieval_{metric}_w1_ov0.nwk",
+            metric=METRICS,
+        )
+    output:
+        csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_e1retrieval.csv"
+    conda:
+        "phyloembed"
+    params:
+        dataset_dir = RESULTS_DIR + "/{dataset}"
+    shell:
+        """
+        Rscript scripts/compare_all_trees.r \
+            --dataset-dir {params.dataset_dir} \
+            --out {output.csv}
+        """
