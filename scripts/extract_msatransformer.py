@@ -9,7 +9,7 @@ from Bio import SeqIO
 import esm
 
 
-MAX_LEN = 1024
+MAX_LEN = 1023  # model caps total tokens (incl. BOS) at 1024
 
 
 def load_msa(input_fasta):
