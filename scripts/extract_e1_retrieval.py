@@ -1,6 +1,7 @@
 import argparse
 import csv
 import pathlib
+from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -9,6 +10,48 @@ from Bio import SeqIO
 
 from E1.modeling import E1ForMaskedLM
 from E1.predictor import E1Predictor
+
+
+def kmer_profile(seqs, k=3):
+    vocab = {}
+    counters = []
+    for s in seqs:
+        c = Counter(s[j:j + k] for j in range(len(s) - k + 1))
+        counters.append(c)
+        for kmer in c:
+            vocab.setdefault(kmer, len(vocab))
+    mat = np.zeros((len(seqs), len(vocab)), dtype=np.float32)
+    for i, c in enumerate(counters):
+        for kmer, cnt in c.items():
+            mat[i, vocab[kmer]] = cnt
+    norms = np.linalg.norm(mat, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    return mat / norms
+
+
+def build_context(clean_seqs, i, budget, sim_matrix):
+    """Build context only for the budget (in token size).
+       This is used to reduce the memory load for OOM issue.
+       First redundant(most similar) sequences are dropped"""
+    idxs = np.array([j for j in range(len(clean_seqs)) if j != i and len(clean_seqs[j]) > 0])
+    lengths = np.array([len(clean_seqs[j]) for j in idxs])
+    total = int(lengths.sum())
+    if total <= budget:
+        return ",".join(clean_seqs[j] for j in idxs)
+
+    sub = sim_matrix[np.ix_(idxs, idxs)].copy()
+    np.fill_diagonal(sub, -np.inf)
+    kept = np.ones(len(idxs), dtype=bool)
+
+    while total > budget:
+        a, b = np.unravel_index(np.argmax(sub), sub.shape)
+        drop = a if lengths[a] >= lengths[b] else b
+        kept[drop] = False
+        total -= lengths[drop]
+        sub[drop, :] = -np.inf
+        sub[:, drop] = -np.inf
+
+    return ",".join(clean_seqs[j] for j in idxs[kept])
 
 
 def embed_e1_retrieval(seq, context, predictor, seq_id, pooling="mean"):
@@ -40,7 +83,8 @@ def embed_e1_retrieval(seq, context, predictor, seq_id, pooling="mean"):
     return emb.detach().cpu().numpy()
 
 
-def process(input_fasta, output_path, gpu_id, pooling="mean", max_batch_tokens=4096):
+def process(input_fasta, output_path, gpu_id, pooling="mean", max_batch_tokens=4096,
+            oom_max_context=13000, oom_min_context=1000, oom_backoff=0.5):
     pooling = pooling.lower()
 
     if torch.cuda.is_available():
@@ -64,14 +108,29 @@ def process(input_fasta, output_path, gpu_id, pooling="mean", max_batch_tokens=4
     raw_seqs = [str(r.seq) for r in records]
     clean_seqs = [s.replace("-", "") for s in raw_seqs]
 
+    kmer_mat = kmer_profile(clean_seqs)
+    sim_matrix = kmer_mat @ kmer_mat.T
+
     labels, embs = [], []
     for i, (seq_id, seq) in enumerate(zip(ids, clean_seqs)):
         if len(seq) == 0:
             print(f"Skipping {seq_id}: empty after removing gaps")
             continue
 
-        context = ",".join(s for j, s in enumerate(clean_seqs) if j != i and len(s) > 0)
-        emb = embed_e1_retrieval(seq, context, predictor, seq_id, pooling=pooling)
+        budget = float("inf")  # first attempt: full family context, no dropping
+        while True:
+            context = build_context(clean_seqs, i, budget, sim_matrix)
+            try:
+                emb = embed_e1_retrieval(seq, context, predictor, seq_id, pooling=pooling)
+                break
+            except RuntimeError as e:
+                if "out of memory" not in str(e).lower():
+                    raise
+                torch.cuda.empty_cache()
+                budget = oom_max_context if budget == float("inf") else int(budget * oom_backoff)
+                if budget < oom_min_context:
+                    raise
+                print(f"{seq_id}: OOM, retrying with context budget={budget}")
 
         if pooling == "concat":
             # re-expand to full alignment length; gaps get a tiny non-zero filler
@@ -124,7 +183,12 @@ if __name__ == "__main__":
     parser.add_argument("--output", "-o", required=True)
     parser.add_argument("--gpu-id", type=int, default=0)
     parser.add_argument("--pooling", type=str, default="mean", choices=["mean", "concat"])
-    parser.add_argument("--max-batch-tokens", type=int, default=4096)
+    parser.add_argument("--oom-max-context", type=int, default=13000)
+    parser.add_argument("--oom-min-context", type=int, default=1000)
+    parser.add_argument("--oom-backoff", type=float, default=0.5)
     args = parser.parse_args()
 
-    process(args.input, args.output, args.gpu_id, pooling=args.pooling, max_batch_tokens=args.max_batch_tokens)
+    process(args.input, args.output, args.gpu_id, pooling=args.pooling,
+            oom_max_context=args.oom_max_context,
+            oom_min_context=args.oom_min_context,
+            oom_backoff=args.oom_backoff)
