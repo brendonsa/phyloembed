@@ -1,0 +1,139 @@
+configfile: "config/configSim.yaml"
+
+import os
+from snakemake.io import glob_wildcards
+
+MODES = ["alignment", "non_aligned"]
+BOOTKINDS = []
+
+sim_cfg = config.get("sim_parse", {})
+sim_datasets = config.get("sim_datasets", [])
+sim_reps = int(config.get("sim_replicates", 0))
+RESULTS_DIR = sim_cfg.get("output_dir", config.get("results_dir", "results"))
+
+def simulated_dataset_ids():
+    rep_ids = [f"replicate_{i:03d}" for i in range(1, sim_reps + 1)]
+    return [f"{d}/{r}" for d in sim_datasets for r in rep_ids]
+
+def existing_simulated_dataset_ids():
+    pattern = os.path.join(sim_cfg.get("input_dir", "simulations/raw"), "{dataset}", "gene_tree.nwk")
+    datasets = glob_wildcards(pattern).dataset
+    base = sim_cfg.get("input_dir", "simulations/raw")
+    unaligned_name = "alignment.unaligned.fa"
+    allowed_roots = set(sim_datasets) if sim_datasets else None
+
+    def within_sim_reps(dataset_id):
+        if sim_reps <= 0:
+            return True
+        rep_name = os.path.basename(dataset_id)
+        if not rep_name.startswith("replicate_"):
+            return False
+        try:
+            rep_idx = int(rep_name.split("_", 1)[1])
+        except ValueError:
+            return False
+        return rep_idx <= sim_reps
+
+    def within_sim_datasets(dataset_id):
+        if allowed_roots is None:
+            return True
+        root = dataset_id.split(os.sep, 1)[0]
+        return root in allowed_roots
+
+    return [
+        d
+        for d in datasets
+        if within_sim_datasets(d)
+        and within_sim_reps(d)
+        and (
+            os.path.exists(os.path.join(base, d, "alignment_TRUE.phy"))
+            or os.path.exists(os.path.join(base, d, unaligned_name))
+        )
+    ]
+
+if config.get("sim_filter_existing", True):
+    SIM_DATASETS = existing_simulated_dataset_ids()
+else:
+    SIM_DATASETS = simulated_dataset_ids()
+
+config.setdefault("models_concat", [])
+if "msatransformer" not in config["models_concat"]:
+    config["models_concat"].append("msatransformer")
+
+include: "rules/sim_parse.smk"
+include: "rules/embeddings.smk"
+
+ruleorder: extract_msatransformer_pooled > extract_embeddings
+ruleorder: extract_msatransformer_raw > extract_embeddings_raw
+
+rule extract_msatransformer_pooled:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        csv = RESULTS_DIR + "/{dataset}/embeddings/msatransformer_alignment.csv"
+    conda:
+        "msatransformer"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_msatransformer.py \
+            --input {input.fasta} \
+            --output {output.csv} \
+            --gpu-id 0 \
+            --pooling mean
+        """
+
+
+rule extract_msatransformer_raw:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        npz = RESULTS_DIR + "/{dataset}/embeddings/msatransformer_raw.npz"
+    conda:
+        "msatransformer"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_msatransformer.py \
+            --input {input.fasta} \
+            --output {output.npz} \
+            --gpu-id 0 \
+            --pooling concat
+        """
+
+
+METRICS = config["metrics"]
+
+rule all:
+    input:
+        expand(
+            RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_msatransformer.csv",
+            dataset=SIM_DATASETS,
+        )
+
+
+rule tree_distances_vs_ref_msatransformer:
+    input:
+        old_csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref.csv",
+        pooled_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_alignment_msatransformer_{metric}.nwk",
+            metric=METRICS,
+        ),
+        window1_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_windows_msatransformer_{metric}_w1_ov0.nwk",
+            metric=METRICS,
+        )
+    output:
+        csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_msatransformer.csv"
+    conda:
+        "phyloembed"
+    params:
+        dataset_dir = RESULTS_DIR + "/{dataset}"
+    shell:
+        """
+        Rscript scripts/compare_all_trees.r \
+            --dataset-dir {params.dataset_dir} \
+            --out {output.csv}
+        """

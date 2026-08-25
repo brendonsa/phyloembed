@@ -1,0 +1,194 @@
+configfile: "config/configSim.yaml"
+
+import os
+from snakemake.io import glob_wildcards
+
+sim_cfg = config.get("sim_parse", {})
+sim_datasets = config.get("sim_datasets", [])
+sim_reps = int(config.get("sim_replicates", 0))
+RESULTS_DIR = sim_cfg.get("output_dir", config.get("results_dir", "results"))
+METRICS = config["metrics"]
+
+def simulated_dataset_ids():
+    rep_ids = [f"replicate_{i:03d}" for i in range(1, sim_reps + 1)]
+    return [f"{d}/{r}" for d in sim_datasets for r in rep_ids]
+
+def existing_simulated_dataset_ids():
+    pattern = os.path.join(sim_cfg.get("input_dir", "simulations/raw"), "{dataset}", "gene_tree.nwk")
+    datasets = glob_wildcards(pattern).dataset
+    base = sim_cfg.get("input_dir", "simulations/raw")
+    unaligned_name = "alignment.unaligned.fa"
+    allowed_roots = set(sim_datasets) if sim_datasets else None
+
+    def within_sim_reps(dataset_id):
+        if sim_reps <= 0:
+            return True
+        rep_name = os.path.basename(dataset_id)
+        if not rep_name.startswith("replicate_"):
+            return False
+        try:
+            rep_idx = int(rep_name.split("_", 1)[1])
+        except ValueError:
+            return False
+        return rep_idx <= sim_reps
+
+    def within_sim_datasets(dataset_id):
+        if allowed_roots is None:
+            return True
+        root = dataset_id.split(os.sep, 1)[0]
+        return root in allowed_roots
+
+    return [
+        d
+        for d in datasets
+        if within_sim_datasets(d)
+        and within_sim_reps(d)
+        and (
+            os.path.exists(os.path.join(base, d, "alignment_TRUE.phy"))
+            or os.path.exists(os.path.join(base, d, unaligned_name))
+        )
+    ]
+
+if config.get("sim_filter_existing", True):
+    SIM_DATASETS = existing_simulated_dataset_ids()
+else:
+    SIM_DATASETS = simulated_dataset_ids()
+
+include: "rules/sim_parse.smk"
+
+
+rule all:
+    input:
+        expand(
+            RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_e1retrieval.csv",
+            dataset=SIM_DATASETS,
+        )
+
+
+# --- experiment 1: pooled retrieval-augmented embedding ---
+# sim only ever produces aligned.fasta (no translated.fasta) -- fine here, since the
+# pooled path strips gaps internally before embedding either way.
+
+rule extract_e1_retrieval:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        csv = RESULTS_DIR + "/{dataset}/embeddings/e1retrieval_alignment.csv"
+    conda:
+        "phyloembed"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_e1_retrieval.py \
+            --input {input.fasta} \
+            --output {output.csv} \
+            --gpu-id 0 \
+            --pooling mean
+        """
+
+
+rule compute_distance_matrix_e1retrieval:
+    input:
+        csv = rules.extract_e1_retrieval.output.csv
+    output:
+        dist = RESULTS_DIR + "/{dataset}/distances_e1retrieval_{metric}.csv"
+    conda:
+        "phyloembed"
+    shell:
+        """
+        python scripts/compute_distance_matrix_phylip.py \
+            --input {input.csv} \
+            --output {output.dist} \
+            --metric {wildcards.metric}
+        """
+
+
+rule build_nj_tree_e1retrieval:
+    input:
+        dist = rules.compute_distance_matrix_e1retrieval.output.dist
+    output:
+        tree = RESULTS_DIR + "/{dataset}/tree_nj_e1retrieval_{metric}.nwk"
+    conda:
+        "phyloembed"
+    shell:
+        "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null"
+
+
+# --- experiment 2: alignment, per-residue retrieval-augmented embedding, window size 1 ---
+
+rule extract_e1_retrieval_pertok:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        npz = RESULTS_DIR + "/{dataset}/embeddings/e1retrieval_raw.npz"
+    conda:
+        "phyloembed"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_e1_retrieval.py \
+            --input {input.fasta} \
+            --output {output.npz} \
+            --gpu-id 0 \
+            --pooling concat
+        """
+
+
+rule window_distances_e1retrieval:
+    input:
+        emb = rules.extract_e1_retrieval_pertok.output.npz
+    output:
+        joined = RESULTS_DIR + "/{dataset}/windows_e1retrieval/model=e1retrieval__metric={metric}__w=1__ov=0/joined.phy",
+        meta = RESULTS_DIR + "/{dataset}/windows_e1retrieval/model=e1retrieval__metric={metric}__w=1__ov=0/windows.json"
+    conda:
+        "phyloembed"
+    shell:
+        """
+        python scripts/build_window_distances.py \
+            --embeddings {input.emb} \
+            --outdir $(dirname {output.joined}) \
+            --window-size 1 \
+            --overlap 0 \
+            --metric {wildcards.metric} \
+            --reduce mean
+        """
+
+
+rule window_phy_to_tree_e1retrieval:
+    input:
+        dist = rules.window_distances_e1retrieval.output.joined
+    output:
+        tree = RESULTS_DIR + "/{dataset}/tree_nj_windows_e1retrieval_{metric}_w1_ov0.nwk"
+    conda:
+        "phyloembed"
+    shell:
+        "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null"
+
+
+# --- scoring: both experiments together in one pass ---
+
+rule tree_distances_vs_ref_e1retrieval:
+    input:
+        old_csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref.csv",
+        pooled_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_e1retrieval_{metric}.nwk",
+            metric=METRICS,
+        ),
+        windowed_trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_windows_e1retrieval_{metric}_w1_ov0.nwk",
+            metric=METRICS,
+        )
+    output:
+        csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_e1retrieval.csv"
+    conda:
+        "phyloembed"
+    params:
+        dataset_dir = RESULTS_DIR + "/{dataset}"
+    shell:
+        """
+        Rscript scripts/compare_all_trees.r \
+            --dataset-dir {params.dataset_dir} \
+            --out {output.csv}
+        """
