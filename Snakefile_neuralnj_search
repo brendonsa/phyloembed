@@ -1,0 +1,49 @@
+configfile: "config/config_new.yaml"
+
+RESULTS_DIR = "results"
+
+# subset for a first pass -- raise/remove the slice to run everything
+N_DATASETS = config.get("neuralnj_search_n", 10)
+DATASETS = config["datasets"][:N_DATASETS] if N_DATASETS else config["datasets"]
+
+
+rule all:
+    input:
+        expand(RESULTS_DIR + "/{dataset}/neuralnj_search.nwk", dataset=DATASETS)
+
+
+rule neuralnj_search_prepare_phy:
+    input:
+        aln = RESULTS_DIR + "/{dataset}/aligned_nucleotides.fasta"
+    output:
+        phy = RESULTS_DIR + "/{dataset}/neuralnj/aln.phy"
+    conda:
+        "phyloembed"
+    shell:
+        """
+        mkdir -p $(dirname {output.phy})
+        python scripts/fasta_to_phylip.py -i {input.aln} -o {output.phy}
+        """
+
+
+rule neuralnj_search_tree:
+    input:
+        phy = rules.neuralnj_search_prepare_phy.output.phy
+    output:
+        tree = RESULTS_DIR + "/{dataset}/neuralnj_search.nwk"
+    params:
+        repo       = config.get("neuralnj_repo", "NeuralNJ"),
+        checkpoint = config.get("neuralnj_checkpoint", "")
+    conda:
+        "neuralnj"
+    resources:
+        gpu_slots = 1
+    shell:
+        r"""
+        python scripts/run_neuralnj.py \
+            --phy {input.phy} \
+            --output {output.tree} \
+            --repo {params.repo} \
+            --infer-opt Search \
+            $( [ -n "{params.checkpoint}" ] && echo "--checkpoint {params.checkpoint}" || true )
+        """
