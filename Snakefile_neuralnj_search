@@ -5,13 +5,10 @@ configfile: "config/config_new.yaml"
 
 RESULTS_DIR = "results"
 
-ALL_DATASETS = sorted(
+DATASETS = sorted(
     os.path.basename(os.path.dirname(p))
     for p in _glob.glob(os.path.join(RESULTS_DIR, "*", "aligned_nucleotides.fasta"))
 )
-
-N_DATASETS = config.get("neuralnj_search_n", 10)
-DATASETS = ALL_DATASETS[:N_DATASETS] if N_DATASETS else ALL_DATASETS
 
 if not DATASETS:
     raise WorkflowError(
