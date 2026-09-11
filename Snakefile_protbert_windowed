@@ -1,0 +1,63 @@
+configfile: "config/config.yaml"
+
+RESULTS_DIR = "results"
+METRICS = config["metrics"]
+
+
+rule all:
+    input:
+        expand(
+            "results/{dataset}/tree_nj_windows_protbert_{metric}_w1_ov0.nwk",
+            dataset=config["datasets"],
+            metric=METRICS,
+        )
+
+
+rule extract_protbert_raw:
+    input:
+        fasta = RESULTS_DIR + "/{dataset}/aligned.fasta"
+    output:
+        npz = RESULTS_DIR + "/{dataset}/embeddings/protbert_raw.npz"
+    conda:
+        "phyloembed"
+    resources:
+        gpu_slots = 1
+    shell:
+        """
+        python scripts/extract_protbert.py \
+            --input {input.fasta} \
+            --output {output.npz} \
+            --gpu-id 0 \
+            --pooling concat
+        """
+
+
+rule window_distances_protbert:
+    input:
+        emb = rules.extract_protbert_raw.output.npz
+    output:
+        joined = RESULTS_DIR + "/{dataset}/windows_protbert/model=protbert__metric={metric}__w=1__ov=0/joined.phy",
+        meta = RESULTS_DIR + "/{dataset}/windows_protbert/model=protbert__metric={metric}__w=1__ov=0/windows.json"
+    conda:
+        "phyloembed"
+    shell:
+        """
+        python scripts/build_window_distances.py \
+            --embeddings {input.emb} \
+            --outdir $(dirname {output.joined}) \
+            --window-size 1 \
+            --overlap 0 \
+            --metric {wildcards.metric} \
+            --reduce mean
+        """
+
+
+rule window_phy_to_tree_protbert:
+    input:
+        dist = rules.window_distances_protbert.output.joined
+    output:
+        tree = RESULTS_DIR + "/{dataset}/tree_nj_windows_protbert_{metric}_w1_ov0.nwk"
+    conda:
+        "phyloembed"
+    shell:
+        "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null"
