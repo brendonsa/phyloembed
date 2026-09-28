@@ -7,9 +7,8 @@ METRICS = config["metrics"]
 rule all:
     input:
         expand(
-            "results/{dataset}/tree_nj_windows_protbert_{metric}_w1_ov0.nwk",
+            "results/{dataset}/tree_distances_vs_ref_protbert.csv",
             dataset=config["datasets"],
-            metric=METRICS,
         )
 
 
@@ -61,3 +60,24 @@ rule window_phy_to_tree_protbert:
         "phyloembed"
     shell:
         "fastme -i {input.dist} -o {output.tree} --nni --spr -q  -T 8 >/dev/null"
+
+
+rule tree_distances_vs_ref_protbert:
+    input:
+        ref = RESULTS_DIR + "/{dataset}/tree.nwk",
+        trees = expand(
+            RESULTS_DIR + "/{{dataset}}/tree_nj_windows_protbert_{metric}_w1_ov0.nwk",
+            metric=METRICS,
+        )
+    output:
+        csv = RESULTS_DIR + "/{dataset}/tree_distances_vs_ref_protbert.csv"
+    conda:
+        "phyloembed"
+    shell:
+        r"""
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        cp {input.ref} "$tmp"/
+        cp {input.trees} "$tmp"/
+        Rscript scripts/compare_all_trees.r --dataset-dir "$tmp" --out {output.csv}
+        """
