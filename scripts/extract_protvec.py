@@ -24,12 +24,12 @@ def embed_sequence(seq, vectors, unk, n=3):
 
 
 def embed_columns(seq, vectors, unk, n=3):
-    """One vector per alignment column: the overlapping n-gram starting at that column."""
+    """One vector per non-overlapping n-column block."""
     seq = seq.upper()
-    L = len(seq)
+    n_blocks = len(seq) // n
     return np.stack([
-        vectors.get(seq[i:i + n], unk) if i + n <= L else unk
-        for i in range(L)
+        vectors.get(seq[i * n:(i + 1) * n], unk)
+        for i in range(n_blocks)
     ])
 
 
